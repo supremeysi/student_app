@@ -64,6 +64,12 @@ archiveServer <- function(id, pool, global_refresh) {
                              "Low" = "#57D163", 
                              "#F78FB3")
         
+        formatted_archive_date <- if (is.na(n$archived_at) || n$archived_at == "" || n$archived_at == "NA") {
+          "No Date"
+        } else {
+          format(as.POSIXct(n$archived_at), "%b %d, %I:%M %p")
+        }
+        
         tags$tr(
           style="background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: transform 0.2s;",
           tags$td(strong(n$title), style="padding: 15px; vertical-align: middle;"),
@@ -137,7 +143,6 @@ archiveServer <- function(id, pool, global_refresh) {
            FROM archives WHERE id = ?id", 
                                        id = as.integer(input$move_to_trash)))
         
-        # 2. Burahin sa archives table
         dbExecute(conn, sqlInterpolate(conn, "DELETE FROM archives WHERE id = ?id", id = as.integer(input$move_to_trash)))
         dbCommit(conn)
         

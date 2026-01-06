@@ -67,7 +67,8 @@ trashServer <- function(id, pool, global_refresh) {
         formatted_date <- if (is.na(n$deleted_at) || n$deleted_at == "" || n$deleted_at == "NA") {
           "No Date"
         } else {
-          format(as.POSIXct(n$deleted_at), "%b %d, %I:%M %p")
+          as_date <- as.POSIXct(n$deleted_at, tz = "UTC") 
+          format(as_date, "%b %d, %I:%M %p") 
         }
         
         tags$tr(
@@ -119,12 +120,13 @@ trashServer <- function(id, pool, global_refresh) {
       showNotification("Trash has been cleared completely.", type = "warning")
     })
     
-    # RESTORE LOGIC
+    # RESTORE LOGIC 
     observeEvent(input$restore, {
       req(input$restore)
       conn <- poolCheckout(pool); on.exit(poolReturn(conn))
       tryCatch({
         dbBegin(conn)
+
         dbExecute(conn, sqlInterpolate(conn, 
                                        "INSERT INTO notes (title, description, note_datetime, priority, status) 
            SELECT title, description, note_datetime, priority, status 
