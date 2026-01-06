@@ -2,6 +2,7 @@
 library(shiny)
 library(DBI)
 library(RMySQL)
+library(RSQLite)
 library(pool)
 library(shinyjs)
 library(toastui)
