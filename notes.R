@@ -172,7 +172,13 @@ notesUI <- function(id) {
     # HEADER
     div(class="header-top",
         div(class="notif-wrapper", style="position:relative;",
-            tags$audio(id = ns("notif_sound"), src = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3", preload = "auto"),
+            # Sa iyong UI part:
+            tags$audio(
+              id = ns("notif_sound"), 
+              src = "sounds/notification.mp3", 
+              type = "audio/mpeg",
+              preload = "auto"
+            ),
             div(id = ns("bell_btn"), style="cursor:pointer; position:relative; padding: 5px;",
                 tags$i(class="fa-solid fa-bell", style="font-size: 26px; color: #FF85A1;"),
                 uiOutput(ns("bell_dot"))
@@ -201,8 +207,8 @@ notesUI <- function(id) {
         div(id = ns("calendar_full"))
     ),
     
-    # SPRINTF FIX
     tags$script(HTML(sprintf("
+      // 1. CALENDAR INITIALIZATION
       function initCalendar() {
         var el = document.getElementById('%s-calendar_full');
         if (!el) return;
@@ -230,6 +236,7 @@ notesUI <- function(id) {
         Shiny.setInputValue('%s-calendar_ready', Math.random());
       }
 
+      // 2. REFRESH CALENDAR HANDLER
       Shiny.addCustomMessageHandler('refresh-calendar', function(events) {
         if (window.notesCalendar) {
           window.notesCalendar.removeAllEvents();
@@ -237,9 +244,19 @@ notesUI <- function(id) {
         }
       });
 
+      // 3. SOUND NOTIFICATION HANDLER (Idagdag ito!)
+      Shiny.addCustomMessageHandler('play-notif-sound', function(message) {
+        var audio = document.getElementById(message.id);
+        if (audio) {
+          audio.currentTime = 0;
+          audio.play().catch(function(e) { console.log('Autoplay blocked'); });
+        }
+      });
+
+      // 4. RE-INIT CALENDAR ON TAB CHANGE
       $(document).on('shiny:visualchange', function() { setTimeout(initCalendar, 200); });
 
-      // BELL TOGGLE LOGIC 
+      // 5. BELL TOGGLE LOGIC 
       $(document).on('click', '#%s-bell_btn', function(e) {
           e.stopPropagation();
           var box = $('#%s-notif_box');
@@ -253,7 +270,8 @@ notesUI <- function(id) {
           }
       });
     ", id, id, id, id, id, id))) 
-)}
+  )
+}
 
 # notesServer function
 notesServer <- function(id, pool, user) {
@@ -301,52 +319,68 @@ notesServer <- function(id, pool, user) {
       })
     })
     
-    # --- TRIGGER SOUND & DOT ---
     observe({
       df <- notes_data()
       now <- Sys.time()
+      
       new_urgent <- df[df$status != "Completed" & 
                          as.POSIXct(df$note_datetime) > now & 
                          as.POSIXct(df$note_datetime) <= (now + 3600), ]
       
       if (nrow(new_urgent) > 0) {
         triggered <- FALSE
-        for (task in new_urgent$title) {
-          if (!(task %in% already_notified())) {
-            already_notified(c(already_notified(), task))
+        current_notified <- already_notified()
+        
+        for (i in seq_len(nrow(new_urgent))) {
+          task_id <- as.character(new_urgent$id[i]) 
+          if (!(task_id %in% current_notified)) {
+            current_notified <- c(current_notified, task_id)
             triggered <- TRUE
           }
         }
         
         if (triggered) {
+          already_notified(current_notified)
           has_unread(TRUE)
-          insertUI(selector = "body", ui = tags$script(sprintf("document.getElementById('%s-notif_sound').play();", id)))
+          
+          session$sendCustomMessage("play-notif-sound", list(id = ns("notif_sound")))
         }
       }
     })
     
-    # --- DASHBOARD ---
+    # --- DASHBOARD LOGIC ---
     completion_pct <- reactive({
       df <- notes_data()
-      if (nrow(df) == 0) return(0)
+      if (is.null(df) || nrow(df) == 0) return(0)
       
-      completed <- sum(df$status == "Completed", na.rm = TRUE)
+      completed <- sum(tolower(df$status) == "completed", na.rm = TRUE)
       total <- nrow(df)
-      round((completed / total) * 100)
+      
+      pct <- (completed / total) * 100
+      return(round(pct))
     })
     
     observe({
-      if (completion_pct() == 100) {
+      df <- notes_data()
+      if (!is.null(df) && nrow(df) > 0 && completion_pct() == 100) {
         session$sendCustomMessage("celebrate-completion", list(success = TRUE))
       }
     })
     
     output$stats_dashboard <- renderUI({
       df <- notes_data()
-      total <- nrow(df)
-      pending <- sum(df$status != "Completed" | is.na(df$status))
-      completed <- sum(df$status == "Completed", na.rm = TRUE)
-      pct <- completion_pct()
+      
+      if (is.null(df) || nrow(df) == 0) {
+        total <- 0
+        pending <- 0
+        completed <- 0
+        pct <- 0
+      } else {
+        total <- nrow(df)
+        completed <- sum(tolower(df$status) == "completed", na.rm = TRUE)
+        pending <- total - completed
+        pct <- completion_pct()
+      }
       
       tagList(
         div(class="stats-container",
@@ -362,11 +396,16 @@ notesServer <- function(id, pool, user) {
         ),
         div(class="progress-container",
             div(class="progress-label",
-                span(if(pct == 100) "Yay! All tasks completed! " else paste0(pct, "% of your tasks done!")),
-                span(tags$i(class=if(pct == 100) "fa-solid fa-party-horn" else "fa-solid fa-rabbit"), style="color: #FF9AA2;")
+                span(if(total > 0 && pct == 100) "Yay! All tasks completed! " 
+                     else if (total == 0) "No tasks yet! "
+                     else paste0(pct, "% of your tasks done!")),
+                span(tags$i(class=if(pct == 100 && total > 0) "fa-solid fa-party-horn" else "fa-solid fa-rabbit"), style="color: #FF9AA2;")
             ),
             div(class="custom-progress",
-                div(class="custom-progress-bar", style = sprintf("width: %d%%;", pct))
+                div(class="custom-progress-bar", 
+                    style = sprintf("width: %d%%; background: %s;", 
+                                    pct, 
+                                    if(pct == 100) "#57D163" else "#FFD1DC"))
             )
         )
       )

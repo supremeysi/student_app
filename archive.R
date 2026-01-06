@@ -109,9 +109,9 @@ archiveServer <- function(id, pool, global_refresh) {
       tryCatch({
         dbBegin(conn)
         dbExecute(conn, sqlInterpolate(conn, 
-                                       "INSERT INTO notes (title, description, note_datetime, priority, status) 
-           SELECT title, description, note_datetime, priority, status 
-           FROM archives WHERE id = ?id", id = as.integer(input$restore_archive)))
+                                       "INSERT INTO archives (title, description, note_datetime, priority, status, archived_at) 
+                                        SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') 
+                                        FROM notes WHERE id = ?id", id = as.integer(idToArchive())))
         
         dbExecute(conn, sqlInterpolate(conn, "DELETE FROM archives WHERE id = ?id", id = as.integer(input$restore_archive)))
         dbCommit(conn)
@@ -124,7 +124,7 @@ archiveServer <- function(id, pool, global_refresh) {
       })
     })
     
-    # MOVE TO TRASH LOGIC
+    # MOVE TO TRASH LOGIC 
     observeEvent(input$move_to_trash, {
       req(input$move_to_trash)
       conn <- poolCheckout(pool); on.exit(poolReturn(conn))
@@ -132,9 +132,12 @@ archiveServer <- function(id, pool, global_refresh) {
       tryCatch({
         dbBegin(conn)
         dbExecute(conn, sqlInterpolate(conn, 
-                                       "INSERT INTO archives (title, description, note_datetime, priority, status, archived_at) 
-                                       SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') FROM notes WHERE id = ?id", id = as.integer(input$move_to_trash)))
+                                       "INSERT INTO trash (title, description, note_datetime, priority, status, deleted_at) 
+           SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') 
+           FROM archives WHERE id = ?id", 
+                                       id = as.integer(input$move_to_trash)))
         
+        # 2. Burahin sa archives table
         dbExecute(conn, sqlInterpolate(conn, "DELETE FROM archives WHERE id = ?id", id = as.integer(input$move_to_trash)))
         dbCommit(conn)
         
