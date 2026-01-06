@@ -374,8 +374,16 @@ notesServer <- function(id, pool, user) {
     
     # ========= GREETINGS =============
     output$display_greeting <- renderUI({
-      h <- as.numeric(format(Sys.time(), "%H"))
-      msg <- if(h < 12) "Good Morning" else if(h < 18) "Good Afternoon" else "Good Evening"
+      h <- as.numeric(format(Sys.time(), "%H", tz = "Asia/Manila"))
+      
+      msg <- if(h < 12) {
+        "Good Morning"
+      } else if(h < 18) {
+        "Good Afternoon"
+      } else {
+        "Good Evening"
+      }
+      
       paste0(msg, "!") 
     })
     

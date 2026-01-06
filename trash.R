@@ -48,7 +48,7 @@ trashServer <- function(id, pool, global_refresh) {
     
     trashData <- reactive({
       global_refresh()
-      dbGetQuery(pool, "SELECT id, title, description, priority, note_datetime, CAST(deleted_at AS CHAR) as deleted_at FROM trash ORDER BY deleted_at DESC")
+      dbGetQuery(pool, "SELECT id, title, description, priority, note_datetime, deleted_at FROM trash ORDER BY deleted_at DESC")
     })
     
     # --- RENDER ROWS  ---
@@ -64,6 +64,12 @@ trashServer <- function(id, pool, global_refresh) {
         n <- df[i,]
         prio_color <- switch(n$priority, "High" = "#FF5A5A", "Medium" = "#FFA534", "Low" = "#57D163", "#F78FB3")
         
+        formatted_date <- if (is.na(n$deleted_at) || n$deleted_at == "" || n$deleted_at == "NA") {
+          "No Date"
+        } else {
+          format(as.POSIXct(n$deleted_at), "%b %d, %I:%M %p")
+        }
+        
         tags$tr(
           style="background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.02);",
           tags$td(strong(n$title), style="padding: 15px; vertical-align: middle;"),
@@ -72,7 +78,7 @@ trashServer <- function(id, pool, global_refresh) {
                   span(n$priority, style=paste0("background:", prio_color, "; color: white; padding: 5px 15px; border-radius: 20px; font-size: 11px; font-weight: 700;"))),
           tags$td(style="padding: 15px; vertical-align: middle; color: #B28D8D; font-size: 13px;",
                   tags$i(class="fa-regular fa-calendar-xmark", style="margin-right: 5px;"),
-                  format(as.POSIXct(n$deleted_at), "%b %d, %I:%M %p")),
+                  formatted_date),
           tags$td(
             style="padding: 15px; vertical-align: middle; text-align: center;",
             div(class="action-wrap", style="position: relative; display: inline-block;",
@@ -119,14 +125,24 @@ trashServer <- function(id, pool, global_refresh) {
       conn <- poolCheckout(pool); on.exit(poolReturn(conn))
       tryCatch({
         dbBegin(conn)
-        dbExecute(conn, sqlInterpolate(conn, "INSERT INTO notes (title, description, note_datetime, priority, status) SELECT title, description, note_datetime, priority, status FROM trash WHERE id = ?id", id = as.integer(input$restore)))
+        dbExecute(conn, sqlInterpolate(conn, 
+                                       "INSERT INTO notes (title, description, note_datetime, priority, status) 
+           SELECT title, description, note_datetime, priority, status 
+           FROM trash WHERE id = ?id", 
+                                       id = as.integer(input$restore)))
+        
         dbExecute(conn, sqlInterpolate(conn, "DELETE FROM trash WHERE id = ?id", id = as.integer(input$restore)))
-        dbCommit(conn); global_refresh(global_refresh() + 1)
+        
+        dbCommit(conn)
+        global_refresh(global_refresh() + 1)
         showNotification("Note restored!", type = "message")
-      }, error = function(e) { dbRollback(conn); showNotification(e$message, type = "error") })
+      }, error = function(e) { 
+        dbRollback(conn)
+        showNotification(e$message, type = "error") 
+      })
     })
     
-    # PERMANENT DELETE LOGIC 
+    # PERMANENT DELETE LOGIC
     observeEvent(input$permanent_delete, {
       req(input$permanent_delete)
       dbExecute(pool, sqlInterpolate(pool, "DELETE FROM trash WHERE id = ?id", id = as.integer(input$permanent_delete)))
