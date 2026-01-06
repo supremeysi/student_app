@@ -628,9 +628,11 @@ logsServer <- function(id, pool, global_refresh) {
         dbBegin(conn)
         
         dbExecute(conn, sqlInterpolate(conn, 
-                                       "INSERT INTO archives (title, description, note_datetime, priority, status, deleted_at) 
-                                       SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') FROM notes WHERE id = ?id", id = as.integer(idToDelete())))
-        
+                                       "INSERT INTO trash (title, description, note_datetime, priority, status, deleted_at) 
+           SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') 
+           FROM notes WHERE id = ?id", 
+                                       id = as.integer(idToDelete())
+        ))
         
         dbExecute(conn, sqlInterpolate(conn, "DELETE FROM notes WHERE id = ?id", id = as.integer(idToDelete())))
         
