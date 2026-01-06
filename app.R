@@ -19,13 +19,56 @@ addResourcePath("images", "images")
 
 # ===================== Database Connection =====================
 pool <- dbPool(
-  drv = MySQL(),
-  dbname = "shiny_db",
-  host = "localhost",
-  user = "root",
-  password = "M@CYatienza19",
-  port = 3306
+  RSQLite::SQLite(),
+  dbname = "student_app.sqlite"
 )
+
+conn <- poolCheckout(pool)
+
+# 1. Users Table
+dbExecute(conn, "CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL
+)")
+
+# Insert default user 
+dbExecute(conn, "INSERT OR IGNORE INTO users (username, password) VALUES ('macy', 'macy123')")
+
+# 2. Notes Table
+dbExecute(conn, "CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    description TEXT,
+    color TEXT,
+    note_datetime TEXT,
+    priority TEXT,
+    status TEXT
+)")
+
+# 3. Archives Table
+dbExecute(conn, "CREATE TABLE IF NOT EXISTS archives (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    description TEXT,
+    note_datetime TEXT,
+    priority TEXT,
+    status TEXT,
+    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)")
+
+# 4. Trash Table
+dbExecute(conn, "CREATE TABLE IF NOT EXISTS trash (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    description TEXT,
+    note_datetime TEXT,
+    priority TEXT,
+    status TEXT,
+    deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)")
+
+poolReturn(conn)
 
 # ===================== UI =====================
 ui <- fluidPage(
