@@ -628,7 +628,7 @@ logsServer <- function(id, pool, global_refresh) {
         dbBegin(conn)
         
         dbExecute(conn, sqlInterpolate(conn, 
-                                       "INSERT INTO archives (title, description, note_datetime, priority, status, archived_at) 
+                                       "INSERT INTO archives (title, description, note_datetime, priority, status, deleted_at) 
                                        SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') FROM notes WHERE id = ?id", id = as.integer(idToDelete())))
         
         
