@@ -512,7 +512,7 @@ logsServer <- function(id, pool, global_refresh) {
         dbBegin(conn)
         dbExecute(conn, sprintf(
           "INSERT INTO trash (title, description, note_datetime, priority, status, deleted_at) 
-           SELECT title, description, note_datetime, priority, status, NOW() FROM notes WHERE id IN (%s)",
+           SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') FROM notes WHERE id IN (%s)",
           paste(ids, collapse = ",")
         ))
         dbExecute(conn, sprintf("DELETE FROM notes WHERE id IN (%s)", paste(ids, collapse = ",")))
@@ -628,9 +628,8 @@ logsServer <- function(id, pool, global_refresh) {
         dbBegin(conn)
         
         dbExecute(conn, sqlInterpolate(conn, 
-                                       "INSERT INTO trash (title, description, note_datetime, priority, status, deleted_at) 
-       SELECT title, description, note_datetime, priority, status, NOW() 
-       FROM notes WHERE id = ?id", id = as.integer(idToDelete())))
+                                       "INSERT INTO archives (title, description, note_datetime, priority, status, archived_at) 
+                                       SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') FROM notes WHERE id = ?id", id = as.integer(idToDelete())))
         
         
         dbExecute(conn, sqlInterpolate(conn, "DELETE FROM notes WHERE id = ?id", id = as.integer(idToDelete())))
@@ -683,7 +682,7 @@ logsServer <- function(id, pool, global_refresh) {
         dbBegin(conn)
         dbExecute(conn, sqlInterpolate(conn, 
                                        "INSERT INTO archives (title, description, note_datetime, priority, status, archived_at) 
-           SELECT title, description, note_datetime, priority, status, NOW() FROM notes WHERE id = ?id", 
+                                       SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') FROM notes WHERE id = ?id", 
                                        id = as.integer(idToArchive())))
         dbExecute(conn, sqlInterpolate(conn, "DELETE FROM notes WHERE id = ?id", id = as.integer(idToArchive())))
         dbCommit(conn)

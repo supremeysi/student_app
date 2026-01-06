@@ -132,9 +132,8 @@ archiveServer <- function(id, pool, global_refresh) {
       tryCatch({
         dbBegin(conn)
         dbExecute(conn, sqlInterpolate(conn, 
-                                       "INSERT INTO trash (title, description, note_datetime, priority, status, deleted_at) 
-           SELECT title, description, note_datetime, priority, status, NOW() 
-           FROM archives WHERE id = ?id", id = as.integer(input$move_to_trash)))
+                                       "INSERT INTO archives (title, description, note_datetime, priority, status, archived_at) 
+                                       SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') FROM notes WHERE id = ?id", id = as.integer(input$move_to_trash)))
         
         dbExecute(conn, sqlInterpolate(conn, "DELETE FROM archives WHERE id = ?id", id = as.integer(input$move_to_trash)))
         dbCommit(conn)
