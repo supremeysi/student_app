@@ -5,6 +5,40 @@ library(DBI)
 trashUI <- function(id) {
   ns <- NS(id)
   tagList(
+    tags$head(
+      tags$style(HTML("
+        @keyframes float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-15px); }
+          100% { transform: translateY(0px); }
+        }
+
+        /* Button animation */
+        .btn-confirm-girly {
+          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+          cursor: pointer;
+        }
+
+        .btn-confirm-girly:hover {
+          transform: scale(1.1) rotate(2deg) !important;
+          background-color: #ff4747 !important;
+          box-shadow: 0 8px 20px rgba(255, 71, 71, 0.4) !important;
+        }
+
+        .modal-content {
+          border-radius: 30px !important;
+          border: none !important;
+          box-shadow: 0 20px 50px rgba(255, 182, 193, 0.3) !important;
+          overflow: hidden;
+        }
+        
+        .custom-table tbody tr:hover {
+          background-color: #FFF9FA !important;
+          transition: 0.3s;
+        }
+      "))
+    ),
+    
     # Header Section 
     div(class="logs-header",
         style="margin-bottom: 25px; padding: 10px; display: flex; justify-content: space-between; align-items: center;",
@@ -103,21 +137,40 @@ trashServer <- function(id, pool, global_refresh) {
     # EMPTY TRASH LOGIC 
     observeEvent(input$empty_all, {
       showModal(modalDialog(
-        title = "Empty Trash?",
-        "Are you sure you want to permanently delete all notes in the trash? This action cannot be undone.",
-        footer = tagList(
-          modalButton("Cancel"),
-          actionButton(ns("confirm_empty"), "Yes, Empty All", class="btn-danger", style="border-radius: 15px;")
+        title = NULL,
+        fade = TRUE,
+        div(class = "dreamy-modal-container",
+            style = "background: linear-gradient(135deg, #FFF5F7 0%, #FFF0F3 100%); border-radius: 30px; padding: 15px; text-align: center;",
+            
+            div(style = "margin-bottom: 20px; position: relative; display: inline-block;",
+                tags$i(class = "fa-solid fa-trash-arrow-up", 
+                       style = "font-size: 60px; color: #FF9AA2; filter: drop-shadow(0 0 10px rgba(255, 154, 162, 0.4)); animation: float 3s ease-in-out infinite;"),
+                tags$i(class = "fa-solid fa-sparkles", 
+                       style = "position: absolute; top: -10px; right: -10px; color: #FFD1DC; font-size: 20px;")
+            ),
+            
+            h2("Empty all notes?", 
+               style = "color: #D63384; font-weight: 850; margin-bottom: 10px; font-family: 'Quicksand', sans-serif;"),
+            
+            p("Are you sure you want to clear your trash? All magical memories here will be deleted forever!", 
+              style = "color: #7A5C5C; font-size: 16px; line-height: 1.5; padding: 0 20px;"),
+            
+            tags$hr(style = "border-top: 2px dashed #FFD1DC; width: 60%; margin: 20px auto;"),
+            
+          
+            div(style = "display: flex; gap: 15px; justify-content: center; margin-top: 10px;",
+                modalButton("Cancel ", 
+                            style = "background: white; color: #FF9AA2; border: 2px solid #FFD1DC; border-radius: 50px; padding: 10px 25px; font-weight: 700; transition: all 0.3s;"),
+                
+                actionButton(ns("confirm_empty"), "Yes, Clear it! ", 
+                             class = "btn-confirm-girly",
+                             style = "background: #FF5A5A; color: white; border: none; border-radius: 50px; padding: 10px 25px; font-weight: 700; box-shadow: 0 4px 15px rgba(255, 90, 90, 0.3);")
+            )
         ),
-        size = "s", easyClose = TRUE
+        footer = NULL, 
+        size = "m", 
+        easyClose = TRUE
       ))
-    })
-    
-    observeEvent(input$confirm_empty, {
-      removeModal()
-      dbExecute(pool, "DELETE FROM trash")
-      global_refresh(global_refresh() + 1)
-      showNotification("Trash has been cleared completely.", type = "warning")
     })
     
     # RESTORE LOGIC 
