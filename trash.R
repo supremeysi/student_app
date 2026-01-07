@@ -13,23 +13,27 @@ trashUI <- function(id) {
           100% { transform: translateY(0px); }
         }
 
-        /* Button animation */
-        .btn-confirm-girly {
-          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        .btn-confirm-girly, .btn-cancel-girly {
           cursor: pointer;
+          transition: all 0.3s ease !important;
         }
 
         .btn-confirm-girly:hover {
-          transform: scale(1.1) rotate(2deg) !important;
+          transform: translateY(-3px) !important;
           background-color: #ff4747 !important;
-          box-shadow: 0 8px 20px rgba(255, 71, 71, 0.4) !important;
+          box-shadow: 0 6px 20px rgba(255, 71, 71, 0.3) !important;
+        }
+
+        .btn-cancel-girly:hover {
+          transform: translateY(-3px) !important;
+          background-color: #FFF9FA !important;
+          border-color: #FFB6C1 !important;
+          color: #D63384 !important;
         }
 
         .modal-content {
           border-radius: 30px !important;
           border: none !important;
-          box-shadow: 0 20px 50px rgba(255, 182, 193, 0.3) !important;
-          overflow: hidden;
         }
         
         .custom-table tbody tr:hover {
@@ -140,37 +144,52 @@ trashServer <- function(id, pool, global_refresh) {
         title = NULL,
         fade = TRUE,
         div(class = "dreamy-modal-container",
-            style = "background: linear-gradient(135deg, #FFF5F7 0%, #FFF0F3 100%); border-radius: 30px; padding: 15px; text-align: center;",
+            style = "background: linear-gradient(135deg, #FFF5F7 0%, #FFF0F3 100%); border-radius: 30px; padding: 25px; text-align: center;",
             
-            div(style = "margin-bottom: 20px; position: relative; display: inline-block;",
-                tags$i(class = "fa-solid fa-trash-arrow-up", 
-                       style = "font-size: 60px; color: #FF9AA2; filter: drop-shadow(0 0 10px rgba(255, 154, 162, 0.4)); animation: float 3s ease-in-out infinite;"),
-                tags$i(class = "fa-solid fa-sparkles", 
-                       style = "position: absolute; top: -10px; right: -10px; color: #FFD1DC; font-size: 20px;")
+            div(style = "margin-bottom: 15px;",
+                tags$i(class = "fa-solid fa-trash-can", 
+                       style = "font-size: 40px; color: #FF9AA2; opacity: 0.8;")
             ),
             
             h2("Empty all notes?", 
-               style = "color: #D63384; font-weight: 850; margin-bottom: 10px; font-family: 'Quicksand', sans-serif;"),
+               style = "color: #D63384; font-weight: 800; margin-bottom: 10px; font-family: 'Quicksand', sans-serif;"),
             
-            p("Are you sure you want to clear your trash? All magical memories here will be deleted forever!", 
-              style = "color: #7A5C5C; font-size: 16px; line-height: 1.5; padding: 0 20px;"),
+            p("Are you sure you want to clear your trash? This action cannot be undone.", 
+              style = "color: #7A5C5C; font-size: 15px; margin-bottom: 25px;"),
             
-            tags$hr(style = "border-top: 2px dashed #FFD1DC; width: 60%; margin: 20px auto;"),
-            
-          
-            div(style = "display: flex; gap: 15px; justify-content: center; margin-top: 10px;",
-                modalButton("Cancel ", 
-                            style = "background: white; color: #FF9AA2; border: 2px solid #FFD1DC; border-radius: 50px; padding: 10px 25px; font-weight: 700; transition: all 0.3s;"),
+            div(style = "display: flex; gap: 12px; justify-content: center;",
                 
+                tags$button(
+                  "Not yet! ",
+                  `data-dismiss` = "modal", 
+                  class = "btn-cancel-girly",
+                  style = "background: white; color: #FF9AA2; border: 2px solid #FFD1DC; border-radius: 50px; padding: 10px 25px; font-weight: 700; transition: all 0.3s;"
+                ),
+                
+                # Confirm Button
                 actionButton(ns("confirm_empty"), "Yes, Clear it! ", 
                              class = "btn-confirm-girly",
-                             style = "background: #FF5A5A; color: white; border: none; border-radius: 50px; padding: 10px 25px; font-weight: 700; box-shadow: 0 4px 15px rgba(255, 90, 90, 0.3);")
+                             style = "background: #FF5A5A; color: white; border: none; border-radius: 50px; padding: 10px 25px; font-weight: 700; box-shadow: 0 4px 15px rgba(255, 90, 90, 0.2);")
             )
         ),
-        footer = NULL, 
+        footer = NULL,
         size = "m", 
         easyClose = TRUE
       ))
+    })
+    
+    observeEvent(input$confirm_empty, {
+      req(input$confirm_empty)
+      
+      removeModal() 
+      
+      tryCatch({
+        dbExecute(pool, "DELETE FROM trash")
+        global_refresh(global_refresh() + 1)
+        showNotification("Trash cleared! ", type = "message")
+      }, error = function(e) {
+        showNotification(paste("Error:", e$message), type = "error")
+      })
     })
     
     # RESTORE LOGIC 
