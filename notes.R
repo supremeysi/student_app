@@ -12,7 +12,6 @@ notesUI <- function(id) {
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;850&display=swap');
         body { background-color: #FFF5F7; font-family: 'Nunito', sans-serif; }
 
-        /* --- ENTRANCE ANIMATION --- */
         .greeting-card, .stat-card, .calendar-container, .progress-container {
           animation: slideUpFade 0.8s ease-out forwards;
           opacity: 0;
@@ -172,7 +171,6 @@ notesUI <- function(id) {
     # HEADER
     div(class="header-top",
         div(class="notif-wrapper", style="position:relative;",
-            # Sa iyong UI part:
             tags$audio(
               id = ns("notif_sound"), 
               src = "sounds/notification.mp3", 
@@ -208,7 +206,6 @@ notesUI <- function(id) {
     ),
     
     tags$script(HTML(sprintf("
-      // 1. CALENDAR INITIALIZATION
       function initCalendar() {
         var el = document.getElementById('%s-calendar_full');
         if (!el) return;
@@ -236,7 +233,6 @@ notesUI <- function(id) {
         Shiny.setInputValue('%s-calendar_ready', Math.random());
       }
 
-      // 2. REFRESH CALENDAR HANDLER
       Shiny.addCustomMessageHandler('refresh-calendar', function(events) {
         if (window.notesCalendar) {
           window.notesCalendar.removeAllEvents();
@@ -244,7 +240,6 @@ notesUI <- function(id) {
         }
       });
 
-      // 3. SOUND NOTIFICATION HANDLER (Idagdag ito!)
       Shiny.addCustomMessageHandler('play-notif-sound', function(message) {
         var audio = document.getElementById(message.id);
         if (audio) {
@@ -253,10 +248,8 @@ notesUI <- function(id) {
         }
       });
 
-      // 4. RE-INIT CALENDAR ON TAB CHANGE
       $(document).on('shiny:visualchange', function() { setTimeout(initCalendar, 200); });
 
-      // 5. BELL TOGGLE LOGIC 
       $(document).on('click', '#%s-bell_btn', function(e) {
           e.stopPropagation();
           var box = $('#%s-notif_box');
@@ -273,7 +266,7 @@ notesUI <- function(id) {
   )
 }
 
-# notesServer function
+# ============== SERVER =============
 notesServer <- function(id, pool, user) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -285,6 +278,39 @@ notesServer <- function(id, pool, user) {
     notes_data <- reactive({
       invalidateLater(5000)
       dbGetQuery(pool, "SELECT * FROM notes")
+    })
+    
+    # ========= CALENDAR LOGIC  =============
+    observe({
+      df <- notes_data()
+      calendar_df <- df[tolower(df$status) != "completed", ]
+      
+      if (nrow(calendar_df) == 0) {
+        session$sendCustomMessage("refresh-calendar", list())
+        return()
+      }
+      
+      events <- lapply(1:nrow(calendar_df), function(i) {
+        evt_color <- switch(calendar_df$priority[i], 
+                            "High" = "#FF5A5A", 
+                            "Medium" = "#FFA534", 
+                            "Low" = "#57D163", 
+                            "#F78FB3")
+        list(
+          title = calendar_df$title[i], 
+          start = calendar_df$note_datetime[i], 
+          backgroundColor = evt_color, 
+          borderColor = evt_color,
+          display = 'block', 
+          textColor = "white", 
+          extendedProps = list(
+            description = calendar_df$description[i], 
+            priority = calendar_df$priority[i]
+          )
+        )
+      })
+      
+      session$sendCustomMessage("refresh-calendar", events)
     })
     
     # --- DOT LOGIC ---
@@ -301,7 +327,7 @@ notesServer <- function(id, pool, user) {
     output$notif_list <- renderUI({
       df <- notes_data()
       now <- Sys.time()
-      urgent <- df[df$status != "Completed" & as.POSIXct(df$note_datetime) <= (now + 86400), ]
+      urgent <- df[tolower(df$status) != "completed" & as.POSIXct(df$note_datetime) <= (now + 86400), ]
       
       if (nrow(urgent) == 0) {
         return(div(style="padding:20px; text-align:center; color:#B28D8D;", "No new notifications "))
@@ -319,11 +345,12 @@ notesServer <- function(id, pool, user) {
       })
     })
     
+    # --- ALERTS & SOUNDS ---
     observe({
       df <- notes_data()
       now <- Sys.time()
       
-      new_urgent <- df[df$status != "Completed" & 
+      new_urgent <- df[tolower(df$status) != "completed" & 
                          as.POSIXct(df$note_datetime) > now & 
                          as.POSIXct(df$note_datetime) <= (now + 3600), ]
       
@@ -342,149 +369,69 @@ notesServer <- function(id, pool, user) {
         if (triggered) {
           already_notified(current_notified)
           has_unread(TRUE)
-          
           session$sendCustomMessage("play-notif-sound", list(id = ns("notif_sound")))
         }
       }
     })
     
-    # --- DASHBOARD LOGIC ---
+    # --- DASHBOARD LOGIC  ---
     completion_pct <- reactive({
       df <- notes_data()
       if (is.null(df) || nrow(df) == 0) return(0)
-      
       completed <- sum(tolower(df$status) == "completed", na.rm = TRUE)
       total <- nrow(df)
-      
-      pct <- (completed / total) * 100
-      return(round(pct))
-    })
-    
-    observe({
-      df <- notes_data()
-      if (!is.null(df) && nrow(df) > 0 && completion_pct() == 100) {
-        session$sendCustomMessage("celebrate-completion", list(success = TRUE))
-      }
+      return(round((completed / total) * 100))
     })
     
     output$stats_dashboard <- renderUI({
       df <- notes_data()
-      
-      if (is.null(df) || nrow(df) == 0) {
-        total <- 0
-        pending <- 0
-        completed <- 0
-        pct <- 0
-      } else {
-        total <- nrow(df)
-        completed <- sum(tolower(df$status) == "completed", na.rm = TRUE)
-        pending <- total - completed
-        pct <- completion_pct()
-      }
+      total <- if(is.null(df)) 0 else nrow(df)
+      completed <- if(is.null(df)) 0 else sum(tolower(df$status) == "completed", na.rm = TRUE)
+      pending <- total - completed
+      pct <- completion_pct()
       
       tagList(
         div(class="stats-container",
-            div(class="stat-card",
-                tags$i(class="fa-solid fa-heart", style="color: #FF9AA2;"),
-                h3(total), p("ALL NOTES")),
-            div(class="stat-card",
-                tags$i(class="fa-solid fa-star", style="color: #FFA534;"),
-                h3(pending), p("PENDING")),
-            div(class="stat-card",
-                tags$i(class="fa-solid fa-circle-check", style="color: #57D163;"),
-                h3(completed), p("COMPLETED"))
+            div(class="stat-card", tags$i(class="fa-solid fa-heart", style="color: #FF9AA2;"), h3(total), p("ALL NOTES")),
+            div(class="stat-card", tags$i(class="fa-solid fa-star", style="color: #FFA534;"), h3(pending), p("PENDING")),
+            div(class="stat-card", tags$i(class="fa-solid fa-circle-check", style="color: #57D163;"), h3(completed), p("COMPLETED"))
         ),
         div(class="progress-container",
             div(class="progress-label",
-                span(if(total > 0 && pct == 100) "Yay! All tasks completed! " 
-                     else if (total == 0) "No tasks yet! "
-                     else paste0(pct, "% of your tasks done!")),
-                span(tags$i(class=if(pct == 100 && total > 0) "fa-solid fa-party-horn" else "fa-solid fa-rabbit"), style="color: #FF9AA2;")
+                span(if(total > 0 && pct == 100) "Yay! All tasks completed! " else paste0(pct, "% done!")),
+                span(tags$i(class="fa-solid fa-rabbit"), style="color: #FF9AA2;")
             ),
             div(class="custom-progress",
-                div(class="custom-progress-bar", 
-                    style = sprintf("width: %d%%; background: %s;", 
-                                    pct, 
-                                    if(pct == 100) "#57D163" else "#FFD1DC"))
+                div(class="custom-progress-bar", style = sprintf("width: %d%%; background: %s;", pct, if(pct == 100) "#57D163" else "#FF758F"))
             )
         )
       )
     })
     
-    # ========= GREETINGS =============
+    # ========= GREETINGS & MODAL =============
     output$display_greeting <- renderUI({
       h <- as.numeric(format(Sys.time(), "%H", tz = "Asia/Manila"))
-      
-      msg <- if(h < 12) {
-        "Good Morning"
-      } else if(h < 18) {
-        "Good Afternoon"
-      } else {
-        "Good Evening"
-      }
-      
+      msg <- if(h < 12) "Good Morning" else if(h < 18) "Good Afternoon" else "Good Evening"
       paste0(msg, "!") 
     })
-    
-    # ========= CALENDAR LOGIC  =============
-    load_events <- function() {
-      df <- dbGetQuery(pool, "SELECT title, description, note_datetime as start, priority FROM notes")
-      if (nrow(df) > 0) {
-        events <- lapply(1:nrow(df), function(i) {
-          evt_color <- switch(df$priority[i], 
-                              "High" = "#FF5A5A", 
-                              "Medium" = "#FFA534", 
-                              "Low" = "#57D163", 
-                              "#F78FB3")
-          list(
-            title = df$title[i], 
-            start = df$start[i], 
-            backgroundColor = evt_color, 
-            borderColor = evt_color,
-            display = 'block', 
-            textColor = "white", 
-            extendedProps = list(description = df$description[i], priority = df$priority[i])
-          )
-        })
-        session$sendCustomMessage("refresh-calendar", events)
-      }
-    }
-    
-    observeEvent(input$calendar_ready, { load_events() })
     
     observeEvent(input$event_clicked, {
       req(input$event_clicked)
       event <- input$event_clicked
-      
       showModal(modalDialog(
         title = NULL, 
         div(class="details-box",
             tags$i(class="fa-solid fa-circle-info", style="font-size: 50px; color: #FFD1DC; margin-bottom: 15px;"),
             h2(strong(event$title), style="color: #D63384; margin: 0; font-weight: 850;"),
             tags$hr(style="border-top: 2px solid #FFF0F3; width: 80%; margin: 20px 0;"),
-            
-            p(style="font-size: 18px; color: #7A5C5C; line-height: 1.6;", 
-              event$description %||% "No description provided."),
-            
-            div(style="margin: 20px 0;",
-                span("Priority: ", style="font-weight: 700; color: #B28D8D;"),
-                span(event$priority, 
-                     style=paste0("color: white; padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; background:", 
-                                  switch(event$priority, "High"="#FF5A5A", "Medium"="#FFA534", "#57D163")))
-            ),
-            
-            p(style="color: #FF85A1; font-size: 14px; font-weight: 600;", 
-              tags$i(class="fa-regular fa-calendar-check", style="margin-right: 5px;"),
-              format(as.POSIXct(event$start), "%B %d, %Y at %I:%M %p"))
+            p(style="font-size: 18px; color: #7A5C5C;", event$description %||% "No description."),
+            p(style="color: #FF85A1; font-weight: 600;", format(as.POSIXct(event$start), "%B %d, %Y at %I:%M %p"))
         ),
-        footer = actionButton(ns("close_details"), "Got it! ", class="btn-close-girly"),
-        size = "m", 
-        easyClose = TRUE 
+        footer = actionButton(ns("close_details"), "Got it!", class="btn-close-girly"),
+        easyClose = TRUE
       ))
     })
     
-    observeEvent(input$close_details, { 
-      removeModal() 
-    })
+    observeEvent(input$close_details, { removeModal() })
   })
 }

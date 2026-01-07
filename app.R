@@ -72,7 +72,6 @@ poolReturn(conn)
 
 # ===================== UI =====================
 ui <- fluidPage(
-  
   tags$head(
     tags$link(
       rel = "stylesheet",
@@ -293,6 +292,7 @@ server <- function(input, output, session) {
   
   dashboardServer("dash", pool, logged_user, global_refresh)
   
+  notesServer("notes_page", pool, user)
   logsServer("logs_page", pool, global_refresh)
   trashServer("trash_page", pool, global_refresh)
   archiveServer("archive_page", pool, global_refresh)
