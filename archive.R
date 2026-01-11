@@ -110,20 +110,27 @@ archiveServer <- function(id, pool, global_refresh) {
     # RESTORE LOGIC 
     observeEvent(input$restore_archive, {
       req(input$restore_archive)
+      target_id <- as.integer(input$restore_archive)
+      
       conn <- poolCheckout(pool); on.exit(poolReturn(conn))
       
       tryCatch({
         dbBegin(conn)
-        dbExecute(conn, sqlInterpolate(conn, 
-                                       "INSERT INTO archives (title, description, note_datetime, priority, status, archived_at) 
-                                        SELECT title, description, note_datetime, priority, status, datetime('now', 'localtime') 
-                                        FROM notes WHERE id = ?id", id = as.integer(idToArchive())))
         
-        dbExecute(conn, sqlInterpolate(conn, "DELETE FROM archives WHERE id = ?id", id = as.integer(input$restore_archive)))
+        dbExecute(conn, sqlInterpolate(conn, 
+                                       "INSERT INTO notes (title, description, note_datetime, priority, status) 
+           SELECT title, description, note_datetime, priority, status 
+           FROM archives WHERE id = ?id", 
+                                       id = target_id))
+        
+        dbExecute(conn, sqlInterpolate(conn, 
+                                       "DELETE FROM archives WHERE id = ?id", 
+                                       id = target_id))
+        
         dbCommit(conn)
         
         global_refresh(global_refresh() + 1)
-        showNotification("Note restored to main board!", type = "message")
+        showNotification("Note restored to main board! ✨", type = "message")
       }, error = function(e) {
         dbRollback(conn)
         showNotification(paste("Error:", e$message), type = "error")

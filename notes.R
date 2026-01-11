@@ -291,25 +291,27 @@ notesServer <- function(id, pool, user) {
       }
       
       events <- lapply(1:nrow(calendar_df), function(i) {
-        evt_color <- switch(calendar_df$priority[i], 
-                            "High" = "#FF5A5A", 
-                            "Medium" = "#FFA534", 
-                            "Low" = "#57D163", 
-                            "#F78FB3")
+        prio <- trimws(calendar_df$priority[i])
+        
+        evt_color <- dplyr::case_when(
+          prio == "High"   ~ "#FFADAD", 
+          prio == "Medium" ~ "#FFD6A5", 
+          prio == "Low"    ~ "#CAFFBF", 
+          TRUE             ~ "#FFC6FF"  
+        )
+        
         list(
-          title = calendar_df$title[i], 
+          title = paste0("[", prio, "] ", calendar_df$title[i]), 
           start = calendar_df$note_datetime[i], 
           backgroundColor = evt_color, 
           borderColor = evt_color,
-          display = 'block', 
-          textColor = "white", 
+          textColor = if(prio == "Low") "#5D4037" else "white", 
           extendedProps = list(
             description = calendar_df$description[i], 
-            priority = calendar_df$priority[i]
+            priority = prio
           )
         )
       })
-      
       session$sendCustomMessage("refresh-calendar", events)
     })
     
