@@ -1,3 +1,11 @@
-.Renviron
+# R session files
 .RData
 .Rhistory
+.RDataTmp
+.Ruserdata
+
+# Database files
+# student_app.sqlite 
+
+# Shiny deployment metadata
+rsconnect/

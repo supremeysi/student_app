@@ -5,6 +5,6 @@ account: macy-apps
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 16377193
-bundleId: 11411218
+bundleId: 11429473
 url: https://macy-apps.shinyapps.io/student_app/
 version: 1

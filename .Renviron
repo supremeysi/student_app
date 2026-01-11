@@ -1,0 +1,5 @@
+DB_HOST="db4free.net"
+DB_PORT=3306
+DB_USER="macy_admin"
+DB_PASS="M@CYatienza19"
+DB_NAME="macy_student_db"
